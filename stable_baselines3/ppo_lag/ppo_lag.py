@@ -100,6 +100,8 @@ class PPOLagrangian(OnPolicyWithCostAlgorithm):
         seed: Optional[int] = None,
         device: Union[th.device, str] = "auto",
         _init_setup_model: bool = True,
+        recon_obs: bool = False,
+        env_configs: dict = None,
     ):
 
         super(PPOLagrangian, self).__init__(
@@ -124,6 +126,8 @@ class PPOLagrangian(OnPolicyWithCostAlgorithm):
             create_eval_env=create_eval_env,
             seed=seed,
             _init_setup_model=False,
+            recon_obs=recon_obs,
+            env_configs=env_configs
         )
 
         self.algo_type = algo_type
@@ -191,6 +195,7 @@ class PPOLagrangian(OnPolicyWithCostAlgorithm):
 
         entropy_losses, all_kl_divs = [], []
         pg_losses, reward_value_losses, cost_value_losses = [], [], []
+        TD_losses = []
         clip_fractions = []
 
         # Train for gradient_steps epochs
@@ -212,6 +217,16 @@ class PPOLagrangian(OnPolicyWithCostAlgorithm):
                 reward_values, cost_values, log_prob, entropy = self.policy.evaluate_actions(rollout_data.observations, actions)
                 reward_values = reward_values.flatten()
                 cost_values = cost_values.flatten()
+
+                with th.no_grad():
+                    _, _, latent_cvf_target, _ = self.policy._get_latent(rollout_data.new_observations)
+                    cost_values_targets_next = self.policy.cost_value_net(latent_cvf_target)
+
+                costs = rollout_data.costs.unsqueeze(1)
+                dones = rollout_data.dones.unsqueeze(1)
+
+                cost_values_targets = costs + (1.0 - dones) * self.cost_gamma * cost_values_targets_next
+                TD_loss = F.mse_loss(cost_values, cost_values_targets.detach())
 
                 # Normalize reward advantages
                 reward_advantages = rollout_data.reward_advantages - rollout_data.reward_advantages.mean()
@@ -262,8 +277,14 @@ class PPOLagrangian(OnPolicyWithCostAlgorithm):
                 # Value loss using the TD(gae_lambda) target
                 reward_value_loss = F.mse_loss(rollout_data.reward_returns, reward_values_pred)
                 cost_value_loss = F.mse_loss(rollout_data.cost_returns, cost_values_pred)
+                # print(th.mean(rollout_data.cost_returns))
+                # print(th.mean(cost_values_pred))
+                # print(th.mean(cost_value_loss))
+                # print('---------------------------------------')
+
                 reward_value_losses.append(reward_value_loss.item())
                 cost_value_losses.append(cost_value_loss.item())
+                TD_losses.append(TD_loss.item())
 
                 # Entropy loss favor exploration
                 if entropy is None:
@@ -274,10 +295,17 @@ class PPOLagrangian(OnPolicyWithCostAlgorithm):
 
                 entropy_losses.append(entropy_loss.item())
 
+                # origin PPO-lag (gae-leambda)
+                # loss = (policy_loss
+                #         + self.ent_coef * entropy_loss
+                #         + self.reward_vf_coef * reward_value_loss
+                #         + self.cost_vf_coef * cost_value_loss)
+
+                # PPO-lag using TD
                 loss = (policy_loss
                         + self.ent_coef * entropy_loss
                         + self.reward_vf_coef * reward_value_loss
-                        + self.cost_vf_coef * cost_value_loss)
+                        + self.cost_vf_coef * TD_loss)
 
                 # Optimization step
                 self.policy.optimizer.zero_grad()
@@ -315,6 +343,7 @@ class PPOLagrangian(OnPolicyWithCostAlgorithm):
         logger.record("train/policy_gradient_loss", np.mean(pg_losses))
         logger.record("train/reward_value_loss", np.mean(reward_value_losses))
         logger.record("train/cost_value_loss", np.mean(cost_value_losses))
+        logger.record("train/TD_loss", np.mean(TD_losses))
         logger.record("train/approx_kl", np.mean(approx_kl_divs))
         logger.record("train/clip_fraction", np.mean(clip_fractions))
         logger.record("train/loss", loss.item())
