@@ -1,20 +1,20 @@
 # Uncertainty-aware Inverse Constrained Reinforcement Learning
 ![](https://github.com/Jasonxu1225/Uncertainty-aware-Inverse-Constrained-Reinforcement-Learning/blob/main/workflow.jpg)
 This is the code for the paper [Uncertainty-aware Constraint Inference in Inverse Constrained Reinforcement Learning](https://openreview.net/pdf?id=ILYjDvUM6U) published at ICLR 2024. Note that:
-1. Our project relies on [MuJoCo](https://mujoco.org/) and [CommonRoad](https://commonroad.in.tum.de/).
+1. Our work includes [MuJoCo](https://mujoco.org/) and [CommonRoad](https://commonroad.in.tum.de/) environments.
 2. The implementation is based on the code from [ICRL-benchmark](https://github.com/Guiliang/ICRL-benchmarks-public/tree/main).
 
 ## Create Python Environment 
 1. Please install the conda before proceeding.
-2. Create conda environment and install the packages:
+2. Create a conda environment and install the packages:
    
 ```
 mkdir save_model
 mkdir evaluate_model
-conda env create -n py39 python=3.9 -f python_environment.yml
-conda activate py39
+conda env create -n cn39 python=3.9 -f python_environment.yml
+conda activate cn39
 ```
-You can also fistly install the Python 3.9 with Pytorch and then install the packages listed in `python_environment.yml`.
+You can also first install Python 3.9 with the torch (2.0.1+cu117) and then install the packages listed in `python_environment.yml`.
 
 ## Setup Experimental Environments 
 ### 1. Setup MuJoCo Environment (you can also refer to [MuJoCo Setup](https://github.com/Guiliang/ICRL-benchmarks-public/blob/main/virtual_env_tutorial.md))
@@ -35,18 +35,18 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
 sudo apt-get update
 sudo apt-get install build-essential make cmake
 
-# option 1: Install with sudo rights (cn-py37 is the name of conda environment).
+# option 1: Install with sudo rights (cn39 is the name of the conda environment).
 cd ./commonroad_environment
-bash ./scripts/install.sh -e cn-py37
+bash ./scripts/install.sh -e cn39
 
 # Option 2: Install without sudo rights
-bash ./commonroad_environment/scripts/install.sh -e cn-py37 --no-root
+bash ./commonroad_environment/scripts/install.sh -e cn39 --no-root
 ```
 
 ## Generate Expert Demonstration
-Note that we have generated the expert data for the ease of usage, and you can download it through [expert_data](123).
+Note that we have generated the expert data for ease of usage, and you can download it through [expert_data](https://drive.google.com/file/d/1tiMARcXg2M9hUUsgadO3pkBA8bXIBif0/view?usp=sharing).
 
-Alternatively, you can also generate your own dataset with different settings such as different constraints or noise levels through the following steps (here we use the Blocked Half-Cheetah environment with noise level 1e-3 as an example):
+Alternatively, you can also generate your own dataset with different settings such as different constraints or noise levels through the following steps (here we use the `Blocked Half-Cheetah` environment with noise level 1e-3 as an example):
 ### 1. Train expert agents with ground-truth constraints.
 Firstly we should train an expert agent (PPO-Lag) with ground-truth constraints:
 ```
@@ -58,12 +58,12 @@ python train_policy.py ../config/Mujoco/Blocked_HalfCheetah/train_PPO-Lag_HC-noi
 After training the expert agent, we can get the expert demonstration through sampling from it:
 ```
 # run data generation
-python generate_data_for_constraint_inference.py -n 5 -mn expert_file_path -tn PPO-Lag-HC -ct no-constraint -rn 0
+python generate_data_for_constraint_inference.py -n 5 -mn your_expert_file_path -tn PPO-Lag-HC -ct no-constraint -rn 0
 ```
-Note that you need you replace the `expert_file_path` by the saved path of your trained expert. You can find it through `save_model/PPO-Lag-HC/expert_file_path`.
+Note that you need to replace the `your_expert_file_path` with the saved path of your trained expert. You can find it through `save_model/PPO-Lag-HC/your_expert_file_path`.
 
 ## Train ICRL Algorithms
-We use the `Blocked Half-Cheetah` environment with noise level 1e-1 and seed 123 as an example. You can also modify the noise level by using different configs and change the seed.
+We use the `Blocked Half-Cheetah` environment with noise level 1e-1 and seed 123 as an example. You can use different seeds or modify the noise level using different configs.
 
 ```
 # train GACL
@@ -84,13 +84,13 @@ python train_icrl.py ..config/Mujoco/Blocked_HalfCheetah/train_UAICRL_HC-noise-1
 
 ## Evaluate Results
 After training the algorithms, we can evaluate their performance through the following steps:
-1. Modify `plot_results_dirs.py` in `interface/plot_results` to add the log path of different algorithms with respect to different environments.
-2. Run `generate_running_plots.py` and check the results and figures in `plot_results` folder.
+1. Modify `plot_results_dirs.py` in `interface/plot_results` to add the log path of different algorithms in different environments.
+2. Run `generate_running_plots.py` and check the results and figures in the `plot_results` folder.
 
 ## Welcome to Cite and Star
 If you have any questions, please contact me via shengxu1@link.cuhk.edu.cn.
 
-If you feel the project helpful, please use the citation:
+If you feel the work helpful, please use the citation:
 ```
 @inproceedings{xu2024uaicrl,
   title={Uncertainty-aware Constraint Inference in Inverse Constrained Reinforcement Learning},
